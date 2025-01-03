@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 
-def plot_all_graphs(coordinates_passed, sound_intensity_sampled, intensity_loss_2d, 
+def plot_all_graphs(coordinates_passed, spl_sampled, intensity_loss_2d, 
                     x_test_global, observed_pred_global, lower_local, upper_local, 
                     var_iter_local, var_iter_global, rmse_local_true, rmse_global_true, 
                     lengthscale, noise, covar_trace, covar_totelements, covar_nonzeroelements, 
@@ -25,7 +25,7 @@ def plot_all_graphs(coordinates_passed, sound_intensity_sampled, intensity_loss_
     ax1.scatter3D(
         [coord[0] for coord in coordinates_passed],
         [coord[1] for coord in coordinates_passed],
-        sound_intensity_sampled, color='black'
+        spl_sampled, color='black'
     )
 
     # 2. Contour Plot

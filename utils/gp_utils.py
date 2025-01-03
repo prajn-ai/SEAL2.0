@@ -16,6 +16,8 @@ def initialize_gp_model():
     return ExactGPModel
 
 def train_gp_model(x_train, y_train, training_iter=75):
+    x_train = x_train.tensor()
+    y_train = y_train.tensor()
     likelihood = gpytorch.likelihoods.GaussianLikelihood()
     model = initialize_gp_model()(x_train, y_train, likelihood)
     model.train()
