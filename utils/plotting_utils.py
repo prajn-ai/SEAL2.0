@@ -34,7 +34,7 @@ def plot_gp_results(fig, coordinates_passed, spl_sampled, spl_column, potential_
     ax2.set_xlabel('x coordinate')
     ax2.set_ylabel('y coordinate')
     ax2.set_title('asv on surface ' + str(coordinates_passed[-1]))
-    contour = ax2.contourf(X, Y, intensity_loss_2d, cmap='viridis')
+    contour = ax2.contourf(X, Y, spl_column, cmap='viridis')
     cbar = fig.colorbar(contour)
     cbar.set_label('Sound Pressure Level')
     asv_path = ax2.plot([coord[0] for coord in coordinates_passed], [coord[1] for coord in coordinates_passed], color='pink')
