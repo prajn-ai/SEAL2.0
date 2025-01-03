@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from sklearn.metrics import mean_squared_error
 from utils.data_utils import SoundFieldData
-from utils.gp_utils import initialize_gp_model, train_gp_model, evaluate_gp_model, RKHS_norm
+from utils.gp_utils import train_gp_model, evaluate_gp_model, RKHS_norm
 from utils.plotting_utils import plot_gp_results
 from utils.sampling_utils import RandomWalk, PotentialNeighbors, AcquisitionFunction, CheckConvergence
 
@@ -60,12 +60,11 @@ def main():
 
     image_path = '/home/prajna/SEAL2.0/plots/'
 
-    fig = plt.figure(figsize=(24, 16))
-
     #Get intial training data with a random walk
-    initial_training_set, coordinates_passed, spl_sampled = RandomWalk(start_location, initial_sample_size, coordinates_passed, spl_sampled, sound_data)
-    asv_location = coordinates_passed[-1]
+    initial_training_set, sampled_region, sampled_spl = RandomWalk(start_location, initial_sample_size, sampled_region, sampled_spl, sound_data, survey_grid)
+    asv_location = sampled_region[-1]
     training_set = initial_training_set.copy()
+    print('Training Set Initial: ', training_set)
     likelihood = gpytorch.likelihoods.GaussianLikelihood()
 
     while convergence_criteria is False:
@@ -75,15 +74,16 @@ def main():
         lengthscale.append(model.covar_module.base_kernel.lengthscale.detach().numpy()[0])
         model.eval()
         likelihood.eval()
-        potential_sampling_locations = PotentialNeighbors(asv_location, coordinates_passed)
-        potential_spls = []
 
+        potential_sampling_locations = PotentialNeighbors(asv_location, sampled_region, survey_grid)
+        potential_spls = []
         for i in potential_sampling_locations:
-            potential_spl,= sound_data.get_spl(i[0], i[1])
+            potential_spl = sound_data.get_spl(i[0], i[1])
             potential_spls.append(potential_spl)
         
         local_x_true = potential_sampling_locations
         potential_sampling_locations = np.array(potential_sampling_locations)
+        
         #Local
         observed_pred_local, lower_local, upper_local, f_var_local, f_covar_local, f_mean_local = evaluate_gp_model(local_x_true, model, likelihood)
         mse_local_true = mean_squared_error(potential_spls, observed_pred_local.mean.numpy())
@@ -114,7 +114,7 @@ def main():
         AIC_sample = 2*np.log(covar_nonzeroelements[-1]) - 2*np.log(mse_global_true)
         AIC.append(AIC_sample)
         # BIC calculated from https://en.wikipedia.org/wiki/Bayesian_information_criterion#Gaussian_special_case
-        BIC_sample = np.size(coordinates_passed)*np.log(covar_nonzeroelements[-1]) - 2*np.log(mse_global_true)
+        BIC_sample = np.size(sampled_region)*np.log(covar_nonzeroelements[-1]) - 2*np.log(mse_global_true)
         BIC.append(BIC_sample)
 
         K_global = output._covar.detach().numpy()
@@ -132,27 +132,28 @@ def main():
         f2_H_sample = RKHS_norm(y_local,sigma,K_local)
         f2_H_local.append(f2_H_sample[0,0])
 
+        fig = plt.figure(figsize=(24, 16))
         # plot real surface and the observed measurements
-        ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10 = plot_gp_results(fig, coordinates_passed, spl_sampled, spl_column, potential_sampling_locations, 
+        ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10 = plot_gp_results(fig, sampled_region, sampled_spl, norm_spl_column, potential_sampling_locations, 
                     survey_grid, lower_local, upper_local, var_iter_local, var_iter_global, 
                     rmse_local_true, rmse_global_true, lengthscale, noise, covar_trace, 
-                    covar_totelements, covar_nonzeroelements, AIC, BIC, f2_H_local, f2_H_global, x_max)
+                    covar_totelements, covar_nonzeroelements, AIC, BIC, f2_H_local, f2_H_global, next_sampling_location)
         plt.show()
         fig.tight_layout()
         fig.savefig(image_path+str(len(training_set))+'.png')
-        fig.clear()
+        plt.close(fig)
+
 
         prev_var_pred_global = f_var_global
         prev_var_pred_local = f_var_local
         convergence_criteria = CheckConvergence(rmse_global_true, convergence_criteria)
 
-        x_max = next_sampling_location
         asv_location = next_sampling_location
         print(asv_location)
-        coordinates_passed.append(asv_location.tolist())
+        sampled_region.append(asv_location.tolist())
 
         new_spl = sound_data.get_spl(asv_location[0], asv_location[1])
-        spl_sampled.append(new_spl)
+        sampled_spl.append(new_spl)
         sampled_data.append((asv_location[0], asv_location[1], new_spl))
 
         new_data_point = (asv_location, new_spl)

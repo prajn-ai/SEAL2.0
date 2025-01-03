@@ -3,7 +3,7 @@ import numpy as np
 import random
 import itertools
 
-def RandomWalk(start_location, initial_sample_size, coordinates_passed, spl_sampled, sound_data):
+def RandomWalk(start_location, initial_sample_size, sampled_region, sampled_spl, sound_data, survey_grid):
     initial_training_set = []
     asv_location = np.array(start_location)  # Start at the given start location
 
@@ -13,33 +13,66 @@ def RandomWalk(start_location, initial_sample_size, coordinates_passed, spl_samp
         x = np.concatenate([asv_location])
         
         # Store the sampled data
-        spl_sampled.append(y)
+        sampled_spl.append(y)
         initial_training_set.append((x, y))
-        coordinates_passed.append(asv_location)
+        sampled_region.append(asv_location)
 
         # Determine the next location
-        filtered_neighbors = PotentialNeighbors(asv_location, coordinates_passed)
+        filtered_neighbors = PotentialNeighbors(asv_location, sampled_region, survey_grid)
         new_location = np.array(random.choice(filtered_neighbors))
         asv_location = new_location
 
-    return initial_training_set, coordinates_passed, spl_sampled
+    return initial_training_set, sampled_region, sampled_spl
 
 
 
-def PotentialNeighbors(current_coordinate, coordinates_passed, distance_horizon=3):
+def PotentialNeighbors(current_coordinate, sampled_region, survey_grid, distance_horizon=3):
     """
     Identify potential neighboring coordinates.
     """
     coordinates_range = range(-distance_horizon, distance_horizon)
     potential_neighbors = np.array(list(itertools.product(coordinates_range, repeat=2)))
-    current_coordinate = current_coordinate.numpy()
 
     all_potential_neighbors = current_coordinate + potential_neighbors
     tup_all_potential_neighbors = set(map(tuple, all_potential_neighbors))
-    tup_coordinates_passed = set(map(tuple, coordinates_passed))
 
-    filtered_neighbors = tup_all_potential_neighbors.difference(tup_coordinates_passed)
-    return torch.tensor(list(filtered_neighbors), dtype=torch.float32)
+    tup_survey_region = set(map(tuple, survey_grid))
+    tup_coordinates_passed = set(map(tuple, sampled_region))
+
+    tup_filtered = tup_all_potential_neighbors.intersection(tup_survey_region)
+    tup_filtered = tup_filtered.difference(tup_coordinates_passed)
+
+
+    
+    # Use boolean indexing to select coordinates to keep
+    filtered = np.array(list(tup_filtered))
+    initial_tup_filtered = tup_filtered
+
+    if len(filtered)<10:
+        for i in filtered: 
+            all_potential_neighbors = i + potential_neighbors
+            tup_all_potential_neighbors = set(map(tuple, all_potential_neighbors))
+
+            tup_filtered = tup_all_potential_neighbors.intersection(tup_survey_region)
+            tup_filtered = tup_filtered.difference(initial_tup_filtered)
+            tup_filtered = tup_filtered.difference(tup_coordinates_passed)
+            i_filtered = np.array(list(tup_filtered))
+            filtered = np.concatenate((filtered, i_filtered))
+    
+    if len(filtered)<10:
+        for i in filtered: 
+            all_potential_neighbors = i + potential_neighbors
+            tup_all_potential_neighbors = set(map(tuple, all_potential_neighbors))
+
+            tup_filtered = tup_all_potential_neighbors.intersection(tup_survey_region)
+            tup_filtered = tup_filtered.difference(initial_tup_filtered)
+            tup_filtered = tup_filtered.difference(tup_coordinates_passed)
+            i_filtered = np.array(list(tup_filtered))
+            filtered = np.concatenate((filtered, i_filtered))
+
+    # print('FILTERED: ', filtered)
+
+    return filtered
 
 def AcquisitionFunction(var, mean, potential_neighbors):
     alpha = 0

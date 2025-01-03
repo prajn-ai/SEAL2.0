@@ -2,28 +2,30 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 
-def plot_gp_results(fig, coordinates_passed, spl_sampled, spl_column, potential_sampling_locations, 
+def plot_gp_results(fig, sampled_region, sampled_spl, spl_column, potential_sampling_locations, 
                     survey_grid, lower_local, upper_local, var_iter_local, var_iter_global, 
                     rmse_local_true, rmse_global_true, lengthscale, noise, covar_trace, 
                     covar_totelements, covar_nonzeroelements, AIC, BIC, f2_H_local, f2_H_global, x_max):
     ax1 = fig.add_subplot(4, 3, 1, projection='3d')
     ax1.set_xlabel('X Coordinate')
     ax1.set_ylabel('Y Coordinate')
-    ax1.set_zlabel('sound intensity')
+    ax1.set_zlabel('sound pressure level')
     ax1.view_init(20, 20)
-    ax1.set_title('asv on surface '+str(coordinates_passed[-1]))
-    x_distances = survey_grid[:, 0]
-    y_distances = survey_grid[:, 1]
-    X, Y = np.meshgrid(x_distances, y_distances)
-    ax1.plot_surface(X, Y, spl_column, cmap='viridis', alpha=0.7)
+    ax1.set_title('asv on surface '+str(sampled_region[-1]))
+    grid_size = int(np.sqrt(len(survey_grid)))  # Assuming a square grid
+    X = survey_grid[:, 0].reshape(grid_size, grid_size)
+    Y = survey_grid[:, 1].reshape(grid_size, grid_size)
+    Z = spl_column.reshape(grid_size, grid_size)
+
+    ax1.plot_surface(X, Y, Z, cmap='viridis', alpha=0.7)
 
     
-    asv_path = ax1.plot3D([coord[0] for coord in coordinates_passed], [coord[1] for coord in coordinates_passed], spl_sampled, color='black')
-    asv = ax1.scatter3D(coordinates_passed[-1][0], coordinates_passed[-1][1], 
-                        spl_sampled[-1], s=100, color='black', marker='*', zorder=1)
+    asv_path = ax1.plot3D([coord[0] for coord in sampled_region], [coord[1] for coord in sampled_region], sampled_spl, color='black')
+    asv = ax1.scatter3D(sampled_region[-1][0], sampled_region[-1][1], 
+                        sampled_spl[-1], s=100, color='black', marker='*', zorder=1)
    
     for i_test in range(len(potential_sampling_locations)):
-        ax1.plot(potential_sampling_locations[i_test][0].numpy()*np.array([1, 1]), potential_sampling_locations[i_test][1].numpy()*np.array([1, 1]), 
+        ax1.plot(potential_sampling_locations[i_test][0]*np.array([1, 1]), potential_sampling_locations[i_test][1]*np.array([1, 1]), 
                  np.array([lower_local[i_test].numpy(), upper_local[i_test].numpy()]), 'gray')
 
  
@@ -33,12 +35,12 @@ def plot_gp_results(fig, coordinates_passed, spl_sampled, spl_column, potential_
     ax2.set_ylim(-60,60)
     ax2.set_xlabel('x coordinate')
     ax2.set_ylabel('y coordinate')
-    ax2.set_title('asv on surface ' + str(coordinates_passed[-1]))
-    contour = ax2.contourf(X, Y, spl_column, cmap='viridis')
+    ax2.set_title('asv on surface ' + str(sampled_region[-1]))
+    contour = ax2.contourf(X, Y, Z, cmap='viridis')
     cbar = fig.colorbar(contour)
     cbar.set_label('Sound Pressure Level')
-    asv_path = ax2.plot([coord[0] for coord in coordinates_passed], [coord[1] for coord in coordinates_passed], color='pink')
-    asv = ax2.scatter(coordinates_passed[-1][0], coordinates_passed[-1][1], color='pink', marker='*', label='ASV', s=100)
+    asv_path = ax2.plot([coord[0] for coord in sampled_region], [coord[1] for coord in sampled_region], color='pink')
+    asv = ax2.scatter(sampled_region[-1][0], sampled_region[-1][1], color='pink', marker='*', label='ASV', s=100)
     ax2.scatter(x_max[0], x_max[1], color='red', label='global maximum uncertainity', s=50)
 
 
