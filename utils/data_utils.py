@@ -27,4 +27,4 @@ class SoundFieldData:
             raise ValueError(f"No data found for coordinates ({x}, {y}).")
 
     def get_data(self):
-        return self.x_column, self.y_column, self.norm_spl_column
+        return self.x_column, self.y_column, self.norm_spl_column, self.spl_column

@@ -2,11 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 
-def plot_all_graphs(fig, coordinates_passed, spl_sampled, intensity_loss_2d, potential_sampling_locations, 
-                    survey_grid, observed_pred_global, lower_local, upper_local, 
-                    var_iter_local, var_iter_global, rmse_local_true, rmse_global_true, 
-                    lengthscale, noise, covar_trace, covar_totelements, covar_nonzeroelements, 
-                    AIC, BIC, f2_H_local, f2_H_global, x_max):
+def plot_gp_results(fig, coordinates_passed, spl_sampled, spl_column, potential_sampling_locations, 
+                    survey_grid, lower_local, upper_local, var_iter_local, var_iter_global, 
+                    rmse_local_true, rmse_global_true, lengthscale, noise, covar_trace, 
+                    covar_totelements, covar_nonzeroelements, AIC, BIC, f2_H_local, f2_H_global, x_max):
     ax1 = fig.add_subplot(4, 3, 1, projection='3d')
     ax1.set_xlabel('X Coordinate')
     ax1.set_ylabel('Y Coordinate')
@@ -16,7 +15,7 @@ def plot_all_graphs(fig, coordinates_passed, spl_sampled, intensity_loss_2d, pot
     x_distances = survey_grid[:, 0]
     y_distances = survey_grid[:, 1]
     X, Y = np.meshgrid(x_distances, y_distances)
-    ax1.plot_surface(X, Y, intensity_loss_2d, cmap='viridis', alpha=0.7)
+    ax1.plot_surface(X, Y, spl_column, cmap='viridis', alpha=0.7)
 
     
     asv_path = ax1.plot3D([coord[0] for coord in coordinates_passed], [coord[1] for coord in coordinates_passed], spl_sampled, color='black')

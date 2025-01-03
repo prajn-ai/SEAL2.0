@@ -18,7 +18,7 @@ def main():
     ##SET your data file here
     data_file = '/home/prajna/SEAL2.0/data/sim/2_source_sim.csv'
     sound_data = SoundFieldData(data_file)
-    x_column, y_column, norm_spl_column = sound_data.get_data()
+    x_column, y_column, norm_spl_column, spl_column = sound_data.get_data()
 
     survey_grid = np.column_stack((x_column, y_column))
 
@@ -133,7 +133,10 @@ def main():
         f2_H_local.append(f2_H_sample[0,0])
 
         # plot real surface and the observed measurements
-        ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10 = plotGP() #, ax11, ax12
+        ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10 = plot_gp_results(fig, coordinates_passed, spl_sampled, spl_column, potential_sampling_locations, 
+                    survey_grid, lower_local, upper_local, var_iter_local, var_iter_global, 
+                    rmse_local_true, rmse_global_true, lengthscale, noise, covar_trace, 
+                    covar_totelements, covar_nonzeroelements, AIC, BIC, f2_H_local, f2_H_global, x_max)
         plt.show()
         fig.tight_layout()
         fig.savefig(image_path+str(len(training_set))+'.png')
@@ -154,6 +157,8 @@ def main():
 
         new_data_point = (asv_location, new_spl)
         training_set.append(new_data_point)
+    
+
 
 
 if __name__ == '__main__':
