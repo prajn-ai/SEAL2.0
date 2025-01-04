@@ -77,15 +77,18 @@ def PotentialNeighbors(current_coordinate, sampled_region, survey_grid, distance
 def AcquisitionFunction(var, mean, potential_neighbors):
     alpha = 0
     beta = 1
-    sampling_mu_var = beta * mean + alpha * var
+    sampling_mu_var = alpha * mean + beta * var
     max_index = np.argmax(sampling_mu_var)
     next_sample_location = potential_neighbors[max_index]
     return next_sample_location, sampling_mu_var
 
 def CheckConvergence(rmse_history, threshold=0.2, min_iter=20):
-
     if len(rmse_history) > min_iter:
-        recent_rmse = rmse_history[-min_iter:]
-        if np.mean(recent_rmse) < threshold:
+        errors_last20 = rmse_history[-min_iter:]
+        if np.mean(errors_last20) < threshold:
+            print("Converged!")
             return True
-    return False
+        else:
+            return False
+    else:
+        return False
