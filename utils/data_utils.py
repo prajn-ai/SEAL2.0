@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import psutil
+import os
 
 class SoundFieldData:
     def __init__(self, file_path):
@@ -28,3 +30,8 @@ class SoundFieldData:
 
     def get_data(self):
         return self.x_column, self.y_column, self.norm_spl_column, self.spl_column
+
+def log_memory_usage():
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    print(f"Memory Usage: {mem_info.rss / 1e6:.2f} MB")

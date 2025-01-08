@@ -18,6 +18,7 @@ def train_gp_model(x_train, y_train, training_iter=75):
     x_train = [torch.tensor(arr, dtype=torch.float32) for arr in x_train]
     x_train = torch.stack(x_train)
     y_train = torch.tensor(y_train, dtype=torch.float32)
+    print('data prepped')
     likelihood = gpytorch.likelihoods.GaussianLikelihood()
     model = ExactGPModel(x_train, y_train, likelihood)
     model.train()
@@ -33,33 +34,72 @@ def train_gp_model(x_train, y_train, training_iter=75):
         output = model(x_train)
         loss = -mll(output, y_train)
         loss.backward()
+        kernel_print(i, training_iter, loss, model)
         optimizer.step()
 
     return likelihood, model, optimizer, output, loss
 
-def evaluate_gp_model(x_test, model, likelihood):
-    x_test = [torch.tensor(arr, dtype=torch.float32) for arr in x_test]
-    x_test = torch.stack(x_test)
+def kernel_print(i, training_iter, loss, model):
+    print('Iter %d/%d - Loss: %.3f   lengthscale: %.3f %.3f   noise: %.3f' % (
+            i + 1, training_iter, loss.item(),
+            model.covar_module.base_kernel.lengthscale.detach().numpy()[0][0],
+            model.covar_module.base_kernel.lengthscale.detach().numpy()[0][1],
+            model.likelihood.noise.detach().numpy()
+        ))
+
+# @profile
+def evaluate_gp_model(x_test, model, likelihood, batch_size=50):
+    if not isinstance(x_test, torch.Tensor):
+        x_test = torch.tensor(x_test, dtype=torch.float32)
+    elif x_test.dtype != torch.float32:
+        x_test = x_test.to(torch.float32)
+
+    # Initialize lists to hold batch results
+    observed_pred_list = []
+    lower_list = []
+    upper_list = []
+    f_var_list = []
+    f_covar_list = []
+    f_mean_list = []
+
+    # Set model and likelihood to evaluation mode
     model.eval()
     likelihood.eval()
-    
-    # Make predictions by feeding model through likelihood
-    with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        observed_pred = likelihood(model(x_test))
-        f_preds = model(x_test)
-        f_mean = f_preds.mean
-        f_var = f_preds.variance
-        #f_var = np.diag(f_preds.lazy_covariance_matrix.numpy())
-        f_covar = f_preds.covariance_matrix
-    
-    with torch.no_grad():
-        # Get upper and lower confidence bounds
-        lower, upper = observed_pred.confidence_region()
 
-    # print('mean', f_mean)
-    # print('var', f_var)
-        
-    return observed_pred, lower, upper, f_var, f_covar, f_mean
+    # Process in batches
+    with torch.no_grad(), gpytorch.settings.fast_pred_var():
+        for i in range(0, len(x_test), batch_size):
+            batch = x_test[i:i + batch_size]
+
+            # Make predictions for the batch
+            observed_pred = likelihood(model(batch))
+            f_preds = model(batch)
+
+            # Extract components
+            f_mean = f_preds.mean
+            f_var = f_preds.variance
+            f_covar = f_preds.lazy_covariance_matrix
+            lower, upper = observed_pred.confidence_region()
+
+            # Append results
+            observed_pred_list.append(f_mean)
+            lower_list.append(lower)
+            upper_list.append(upper)
+            f_var_list.append(f_var)
+            f_covar_list.append(f_covar)  # Keep as list for memory efficiency
+            f_mean_list.append(f_mean)
+
+    # Concatenate tensor results
+    observed_pred = torch.cat(observed_pred_list, dim=0)
+    lower = torch.cat(lower_list, dim=0)
+    upper = torch.cat(upper_list, dim=0)
+    f_var = torch.cat(f_var_list, dim=0)
+    f_mean = torch.cat(f_mean_list, dim=0)
+    # Convert f_covar to a single tensor (if memory allows)
+    # f_covar = torch.cat([covar.evaluate() for covar in f_covar_list], dim=0)
+
+
+    return observed_pred, lower, upper, f_var, f_covar_list, f_mean
 
 def RKHS_norm(y,sigma,K):
     n_row, n_col = K.shape

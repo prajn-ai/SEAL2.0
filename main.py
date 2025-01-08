@@ -2,18 +2,22 @@ import torch
 import gpytorch
 import random
 import math
+import gc
+import logging
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
 from sklearn.metrics import mean_squared_error
-from utils.data_utils import SoundFieldData
+from utils.data_utils import SoundFieldData, log_memory_usage
 from utils.gp_utils import train_gp_model, evaluate_gp_model, RKHS_norm
 from utils.plotting_utils import plot_gp_results
 from utils.sampling_utils import RandomWalk, PotentialNeighbors, AcquisitionFunction, CheckConvergence
 
 def main():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.cuda.empty_cache()
     ##SET your data file here
     data_file = '/home/prajna/SEAL2.0/data/sim/2_source_sim.csv'
     sound_data = SoundFieldData(data_file)
@@ -56,14 +60,26 @@ def main():
 
     ## Main SEAL Algorithm
     while convergence_criteria is False:
+        # log_memory_usage()
         x_train, y_train = zip(*training_set)
-        likelihood, model, optimizer, output, loss = train_gp_model(x_train, y_train, training_iter)
+
+        try:
+            likelihood, model, optimizer, output, loss = train_gp_model(x_train, y_train, training_iter)
+        except Exception as e:
+            logging.error(f"GP Training Error: {e}")
+            break
+
         noise.append(model.likelihood.noise.detach().numpy())
         lengthscale.append(model.covar_module.base_kernel.lengthscale.detach().numpy()[0])
         model.eval()
         likelihood.eval()
 
         potential_sampling_locations = PotentialNeighbors(asv_location, sampled_region, survey_grid)
+        if len(potential_sampling_locations) == 0:
+            logging.error("No more potential sampling locations available.")
+            break
+
+        
         potential_spls = []
         for i in potential_sampling_locations:
             potential_spl = sound_data.get_spl(i[0], i[1])
@@ -72,10 +88,14 @@ def main():
         local_x_true = potential_sampling_locations
         potential_sampling_locations = np.array(potential_sampling_locations)
         observed_pred_local, lower_local, upper_local, f_var_local, f_covar_local, f_mean_local = evaluate_gp_model(local_x_true, model, likelihood)
-        mse_local_true = mean_squared_error(potential_spls, observed_pred_local.mean.numpy())
+        predicted_mean_local = observed_pred_local.numpy()
+        mse_local_true = mean_squared_error(potential_spls, predicted_mean_local)
         rmse_local_true.append(math.sqrt(mse_local_true))
         observed_pred_global, lower_global, upper_global, f_var_global, f_covar_global, f_mean_global = evaluate_gp_model(survey_grid, model, likelihood)
-        mse_global_true = mean_squared_error(norm_spl_column, observed_pred_global.mean.numpy())
+        del lower_global, upper_global, f_mean_global
+        predicted_mean_global = observed_pred_global.numpy()
+        print('Local eval done')
+        mse_global_true = mean_squared_error(norm_spl_column, predicted_mean_global)
         rmse_global_true.append(math.sqrt(mse_global_true))
 
         #Determining Next sampling location
@@ -89,9 +109,14 @@ def main():
 
         var_iter_local.append(max(f_var_local.numpy()))
         var_iter_global.append(max(f_var_global.numpy()))
-        covar_trace.append(np.trace(f_covar_global.detach().numpy()))
-        covar_totelements.append(np.size(f_covar_global.detach().numpy()))
-        covar_nonzeroelements.append(np.count_nonzero(f_covar_global.detach().numpy()))
+        for f_covar in f_covar_global:
+            covar_matrix = f_covar.evaluate()
+            trace_value = covar_matrix.diag().sum().detach().cpu().numpy()
+            covar_trace.append(trace_value)
+            total_elements = covar_matrix.numel()
+            covar_totelements.append(total_elements)
+            nonzero_elements = np.count_nonzero(covar_matrix.cpu().numpy())
+            covar_nonzeroelements.append(nonzero_elements)
         mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
         AIC_sample = 2*np.log(covar_nonzeroelements[-1]) - 2*np.log(mse_global_true)
         AIC.append(AIC_sample)
@@ -125,13 +150,17 @@ def main():
         convergence_criteria = CheckConvergence(rmse_global_true)
         asv_location = next_sampling_location
         print('Next Sampling Location: ', next_sampling_location)
-        print(convergence_criteria)
+        print('CONV: ', convergence_criteria)
         sampled_region.append(asv_location.tolist())
         new_spl = sound_data.get_spl(asv_location[0], asv_location[1])
         sampled_spl.append(new_spl)
         sampled_data.append((asv_location[0], asv_location[1], new_spl))
         new_data_point = (asv_location, new_spl)
         training_set.append(new_data_point)
+        del observed_pred_local, lower_local, upper_local, f_var_local, f_covar_local, f_mean_local
+        del observed_pred_global  # Already deleting lower_global, upper_global
+        gc.collect()
+        torch.cuda.empty_cache()
     
 
 
